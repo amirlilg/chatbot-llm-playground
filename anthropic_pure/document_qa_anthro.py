@@ -1,15 +1,16 @@
 import os
-from openai import OpenAI
+from anthropic import Anthropic
 from typing import List, Dict, Any
 import uuid
 
 class DocumentQABot:
     def __init__(self, api_key: str = None):
-        """Initialize the Document QA Bot with OpenAI client."""
-        self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
-        self.model = "gpt-4o"  # Using GPT-4o which supports advanced context features
+        """Initialize the Document QA Bot with Anthropic client."""
+        self.client = Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+        self.model = "claude-3-7-sonnet-20250219"  # Using Claude 3.7 Sonnet with MCP support
         self.messages = []
         self.documents = {}  # Store document references
+        self.context_entities = []  # Track active context entities
         
     def add_document(self, document_content: str, document_name: str = None) -> str:
         """Add a document to the context."""
@@ -17,24 +18,25 @@ class DocumentQABot:
         doc_name = document_name or f"Document-{doc_id[:8]}"
         
         # Create document entity
-        self.documents[doc_id] = {
-            "id": doc_id,
-            "name": doc_name,
-            "content": document_content
+        document_entity = {
+            "type": "document",
+            "document": {
+                "id": doc_id,
+                "name": doc_name,
+                "content": document_content
+            }
         }
+        
+        # Store document reference
+        self.documents[doc_id] = document_entity["document"]
+        
+        # Add to active context entities
+        self.context_entities.append(document_entity)
         
         # Notify the model about the new document via a system message
         self.messages.append({
-            "role": "system",
-            "content": f"Document '{doc_name}' (ID: {doc_id}) has been added to the context.",
-            "context": [{
-                "type": "document",
-                "document": {
-                    "id": doc_id,
-                    "name": doc_name,
-                    "content": document_content
-                }
-            }]
+            "role": "assistant",
+            "content": f"I've added the document '{doc_name}' to my context and can now answer questions about it."
         })
         
         return doc_id
@@ -47,26 +49,18 @@ class DocumentQABot:
             "content": question
         })
         
-        # Collect all document context entities
-        document_entities = []
-        for doc_id, doc in self.documents.items():
-            document_entities.append({
-                "type": "document",
-                "document": {
-                    "id": doc_id,
-                    "name": doc["name"],
-                    "content": doc["content"]
-                }
-            })
+        # Create a copy of messages to avoid modifying the original
+        messages_for_request = self.messages.copy()
         
-        # Get completion with document context
-        response = self.client.chat.completions.create(
+        # Get completion with document context using Model Context Protocol
+        response = self.client.messages.create(
             model=self.model,
-            messages=self.messages,
-            context=document_entities if document_entities else None
+            messages=messages_for_request,
+            context=self.context_entities if self.context_entities else None,
+            max_tokens=1000
         )
         
-        answer = response.choices[0].message.content
+        answer = response.content[0].text
         
         # Add response to message history
         self.messages.append({
@@ -78,20 +72,27 @@ class DocumentQABot:
     
     def list_documents(self) -> List[Dict[str, str]]:
         """List all documents in the context."""
-        return [{"id": doc_id, "name": doc["name"]} for doc_id, doc in self.documents.items()]
+        return [{"id": doc["id"], "name": doc["name"]} for doc in [entity["document"] for entity in self.context_entities if entity["type"] == "document"]]
     
     def remove_document(self, doc_id: str) -> bool:
         """Remove a document from the context."""
-        if doc_id in self.documents:
-            doc_name = self.documents[doc_id]["name"]
-            del self.documents[doc_id]
-            
-            # Notify the model about document removal
-            self.messages.append({
-                "role": "system",
-                "content": f"Document '{doc_name}' (ID: {doc_id}) has been removed from the context."
-            })
-            return True
+        for i, entity in enumerate(self.context_entities):
+            if entity["type"] == "document" and entity["document"]["id"] == doc_id:
+                doc_name = entity["document"]["name"]
+                
+                # Remove from context entities
+                self.context_entities.pop(i)
+                
+                # Remove from documents dictionary
+                if doc_id in self.documents:
+                    del self.documents[doc_id]
+                
+                # Notify about document removal
+                self.messages.append({
+                    "role": "assistant",
+                    "content": f"I've removed the document '{doc_name}' from my context."
+                })
+                return True
         return False
 
 
@@ -134,13 +135,16 @@ if __name__ == "__main__":
     """, "Q4 Financial Report")
     
     # Ask questions
+    print("Asking first question...")
     answer1 = bot.ask("What products does Acme offer?")
     print(f"Q: What products does Acme offer?\nA: {answer1}\n")
     
+    print("Asking second question...")
     answer2 = bot.ask("When is the company planning to go public and what's the expected valuation?")
     print(f"Q: When is the company planning to go public?\nA: {answer2}\n")
     
     # Remove a document and ask again
+    print("Removing financial report document...")
     bot.remove_document(doc2_id)
     answer3 = bot.ask("What's Acme's IPO plan?")
     print(f"Q: What's Acme's IPO plan?\nA: {answer3}")
