@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "python",
+      "args": ["filesystem_server.py"]
+    }
+  }
+}
