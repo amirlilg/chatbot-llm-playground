@@ -76,7 +76,7 @@ class LocalMCPChatbot:
     async def connect_to_servers(self):
         """Connect to all configured MCP servers."""
         try:
-            with open("server_config.json", "r") as file:
+            with open("server_config_1.json", "r") as file:
                 data = json.load(file)
             
             servers = data.get("mcpServers", {})
