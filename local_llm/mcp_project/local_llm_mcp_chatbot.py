@@ -13,10 +13,10 @@ class ToolDefinition(TypedDict):
     input_schema: dict
 
 class LocalMCPChatbot:
-    def __init__(self):
+    def __init__(self, desired_model = "llama3.2:3b"):
         # Choose a model that supports function calling
         # Options: llama3.2:3b, llama3.1:8b, mistral:7b, qwen2.5:3b
-        self.desired_model = "llama3.2:3b"
+        self.desired_model = desired_model
         self.sessions: List[ClientSession] = []
         self.exit_stack = AsyncExitStack()
         self.available_tools: List[ToolDefinition] = []
@@ -143,7 +143,7 @@ class LocalMCPChatbot:
             
             # Check if the model wants to call tools
             if 'tool_calls' in assistant_message and assistant_message['tool_calls']:
-                print(f"\n🔧 Llama is calling tools...")
+                print(f"\n🔧 LLM Model is calling tools...")
                 
                 # Process each tool call
                 for tool_call in assistant_message['tool_calls']:
@@ -170,11 +170,11 @@ class LocalMCPChatbot:
                 
                 final_message = final_response['message']
                 messages.append(final_message)
-                print(f"\nLlama3.2: {final_message['content']}")
+                print(f"\n{self.desired_model}: {final_message['content']}")
                 
             else:
                 # No tool calls, just display the response
-                print(f"\nLlama3.2: {assistant_message['content']}")
+                print(f"\n{self.desired_model}: {assistant_message['content']}")
             
         except Exception as e:
             print(f"Error processing query: {e}")
@@ -183,7 +183,7 @@ class LocalMCPChatbot:
 
     async def chat_loop(self):
         """Run an interactive chat loop with tool support"""
-        print("\n🤖 Llama3.2 MCP Chatbot Started!")
+        print("\n🤖 MCP Chatbot Started!")
         print("Available filesystem tools:")
         for tool in self.available_tools:
             print(f"  • {tool['name']}: {tool['description']}")
@@ -225,8 +225,8 @@ class LocalMCPChatbot:
         await self.exit_stack.aclose()
 
 async def main():
+    # chatbot = LocalMCPChatbot(desired_model="qwen3:0.6b")
     chatbot = LocalMCPChatbot()
-    
     try:
         # Setup Ollama
         # if not chatbot.setup_ollama():
