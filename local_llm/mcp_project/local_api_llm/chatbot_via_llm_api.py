@@ -136,7 +136,7 @@ class LocalMCPChatbot:
     async def connect_to_servers(self):
         """Connect to all configured MCP servers."""
         try:
-            with open("server_config.json", "r") as file:
+            with open("server_config_sqlite.json", "r") as file:
                 data = json.load(file)
             
             servers = data.get("mcpServers", {})
@@ -281,7 +281,7 @@ class LocalMCPChatbot:
         await self.exit_stack.aclose()
 
 async def main():
-    desired_model = "qwen3:8b"
+    desired_model = "llama3.1:8b" # options: llama3.1:8b , qwen3:8b 
     ollama_host = "192.168.176.1"
     ollama_port = 11434
     # You can specify different models and connection details here
